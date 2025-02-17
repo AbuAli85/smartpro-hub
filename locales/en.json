@@ -1,0 +1,26 @@
+{
+  "userType": "User Type",
+  "selectUserType": "Select User Type",
+  "business": "Business",
+  "freelancer": "Freelancer",
+  "individual": "Individual",
+  "crNumber": "CR Number",
+  "companyName": "Company Name",
+  "industry": "Industry",
+  "idCardNumber": "ID Card Number",
+  "skillset": "Skillset",
+  "portfolioLink": "Portfolio Link",
+  "email": "Email",
+  "password": "Password",
+  "confirmPassword": "Confirm Password",
+  "phoneNumber": "Phone Number",
+  "signUp": "Sign Up",
+  "orContinueWith": "Or continue with",
+  "setupYourProfile": "Set up your profile",
+  "businessLicense": "Business License",
+  "taxDetails": "Tax Details",
+  "servicesOffered": "Services Offered",
+  "saving": "Saving...",
+  "saveProfile": "Save Profile"
+}
+

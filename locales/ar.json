@@ -1,0 +1,26 @@
+{
+  "userType": "نوع المستخدم",
+  "selectUserType": "اختر نوع المستخدم",
+  "business": "شركة",
+  "freelancer": "مستقل",
+  "individual": "فرد",
+  "crNumber": "رقم السجل التجاري",
+  "companyName": "اسم الشركة",
+  "industry": "الصناعة",
+  "idCardNumber": "رقم البطاقة الشخصية",
+  "skillset": "المهارات",
+  "portfolioLink": "رابط المحفظة",
+  "email": "البريد الإلكتروني",
+  "password": "كلمة المرور",
+  "confirmPassword": "تأكيد كلمة المرور",
+  "phoneNumber": "رقم الهاتف",
+  "signUp": "تسجيل",
+  "orContinueWith": "أو تابع باستخدام",
+  "setupYourProfile": "إعداد ملفك الشخصي",
+  "businessLicense": "الرخصة التجارية",
+  "taxDetails": "التفاصيل الضريبية",
+  "servicesOffered": "الخدمات المقدمة",
+  "saving": "جاري الحفظ...",
+  "saveProfile": "حفظ الملف الشخصي"
+}
+

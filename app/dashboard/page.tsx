@@ -1,80 +1,112 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { useSession } from "next-auth/react"
-import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
+import { useEffect, useState } from "react"
+import { useAuth } from "@/lib/auth/auth-context"
+import { debugAuth } from "@/lib/auth/debug-auth"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { useIntl } from "react-intl"
-import { createClient } from "@supabase/supabase-js"
-
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+import { LoadingSpinner } from "@/components/ui/loading-spinner"
+import { DebugButton } from "@/components/auth/debug-button"
 
 export default function DashboardPage() {
-  const { data: session, status } = useSession()
-  const router = useRouter()
-  const intl = useIntl()
-  const [userProfile, setUserProfile] = useState<any>(null)
+  const { user, role, profile, isLoading } = useAuth()
+  const [debugInfo, setDebugInfo] = useState<any>(null)
+  const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push("/login")
-    } else if (status === "authenticated" && session?.user?.email) {
-      fetchUserProfile(session.user.email)
-    }
-  }, [status, session, router])
+    setMounted(true)
 
-  const fetchUserProfile = async (email: string) => {
-    const { data, error } = await supabase.from("user_profiles").select("*").eq("email", email).single()
-
-    if (error) {
-      console.error("Error fetching user profile:", error)
-    } else {
-      setUserProfile(data)
+    // Run debug auth on mount
+    const runDebug = async () => {
+      const info = await debugAuth()
+      setDebugInfo(info)
     }
+
+    runDebug()
+  }, [])
+
+  // Prevent hydration mismatch
+  if (!mounted) {
+    return null
   }
 
-  if (status === "loading" || !userProfile) {
-    return <div>{intl.formatMessage({ id: "loading" })}</div>
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center h-[calc(100vh-4rem)]">
+        <LoadingSpinner size="lg" />
+      </div>
+    )
   }
 
   return (
-    <div className="container mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4">
-        {intl.formatMessage({ id: "welcome" }, { name: userProfile.company_name || userProfile.name })}
-      </h1>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <Card>
           <CardHeader>
-            <CardTitle>{intl.formatMessage({ id: "profile" })}</CardTitle>
-            <CardDescription>{intl.formatMessage({ id: "profileDescription" })}</CardDescription>
+            <CardTitle>Welcome, {profile?.first_name || user?.email || "User"}</CardTitle>
+            <CardDescription>You are logged in as a {role || "user"}</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button onClick={() => router.push("/profile")}>{intl.formatMessage({ id: "viewProfile" })}</Button>
+            <p>This is your dashboard where you can manage your account and services.</p>
+            <div className="mt-4 text-xs text-muted-foreground">
+              <p>User ID: {user?.id}</p>
+              <p>Email: {user?.email}</p>
+            </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>{intl.formatMessage({ id: "services" })}</CardTitle>
-            <CardDescription>{intl.formatMessage({ id: "servicesDescription" })}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button onClick={() => router.push("/services")}>{intl.formatMessage({ id: "manageServices" })}</Button>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>{intl.formatMessage({ id: "appointments" })}</CardTitle>
-            <CardDescription>{intl.formatMessage({ id: "appointmentsDescription" })}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button onClick={() => router.push("/appointments")}>
-              {intl.formatMessage({ id: "viewAppointments" })}
-            </Button>
-          </CardContent>
-        </Card>
+
+        {role === "admin" && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Admin Actions</CardTitle>
+              <CardDescription>Manage users and system settings</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p>As an admin, you have access to user management and system settings.</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {role === "provider" && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Provider Actions</CardTitle>
+              <CardDescription>Manage your services and availability</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p>As a provider, you can manage your services and availability.</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {role === "client" && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Client Actions</CardTitle>
+              <CardDescription>Book services and manage appointments</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p>As a client, you can book services and manage your appointments.</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Debug card - only visible in development */}
+        {process.env.NODE_ENV === "development" && (
+          <Card className="col-span-full">
+            <CardHeader>
+              <CardTitle>Debug Information</CardTitle>
+              <CardDescription>Authentication and session details</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <pre className="text-xs overflow-auto max-h-60 p-2 bg-gray-100 dark:bg-gray-800 rounded">
+                {JSON.stringify(debugInfo, null, 2)}
+              </pre>
+            </CardContent>
+          </Card>
+        )}
       </div>
-    </div>
+
+      {process.env.NODE_ENV === "development" && <DebugButton />}
+    </>
   )
 }
-

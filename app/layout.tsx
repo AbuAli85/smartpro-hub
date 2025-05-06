@@ -1,15 +1,13 @@
 import type React from "react"
 import "./globals.css"
-import { Inter } from "next/font/google"
-import { Providers } from "./providers"
-import { LanguageToggle } from "@/components/language-toggle"
-import { ThemeToggle } from "@/components/theme-toggle"
+import type { Metadata } from "next"
+import { ThemeProvider } from "@/components/theme-provider"
+import { AuthProvider } from "@/lib/auth/auth-context"
+import { Toaster } from "@/components/ui/toaster"
 
-const inter = Inter({ subsets: ["latin"] })
-
-export const metadata = {
-  title: "Oman Business Services Signup",
-  description: "Register for business services in Oman",
+export const metadata: Metadata = {
+  title: "SmartPRO Business Services Hub",
+  description: "A platform for business service providers and clients",
     generator: 'v0.dev'
 }
 
@@ -20,19 +18,24 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={inter.className}>
-        <Providers>
-          <div className="flex justify-end p-4 space-x-2">
-            <LanguageToggle />
-            <ThemeToggle />
-          </div>
-          {children}
-        </Providers>
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        {/* Load Inter font using CSS instead of next/font */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+          rel="stylesheet"
+        />
+      </head>
+      <body className="font-sans" suppressHydrationWarning>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <AuthProvider>
+            {children}
+            <Toaster />
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   )
 }
-
-
-
-import './globals.css'

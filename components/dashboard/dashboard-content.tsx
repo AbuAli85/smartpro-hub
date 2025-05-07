@@ -20,6 +20,7 @@ export function DashboardContent() {
   const [loading, setLoading] = useState(true)
   const [userRole, setUserRole] = useState<string | null>(null)
   const [supabaseConfigured, setSupabaseConfigured] = useState(true)
+  const [dataError, setDataError] = useState<string | null>(null)
 
   const supabase = getSupabaseClient()
 
@@ -37,9 +38,9 @@ export function DashboardContent() {
 
           // Check if the error is related to Supabase configuration
           if (
-            userError.message.includes("not configured") ||
-            userError.message.includes("Invalid URL") ||
-            userError.message.includes("anon key")
+            userError.message?.includes("not configured") ||
+            userError.message?.includes("Invalid URL") ||
+            userError.message?.includes("anon key")
           ) {
             setSupabaseConfigured(false)
 
@@ -83,41 +84,78 @@ export function DashboardContent() {
           setProfileError(err instanceof Error ? err : new Error(String(err)))
         }
 
-        // Get counts
+        // Get counts - use a safer approach with try/catch blocks for each query
+        // Bookings count
         try {
-          // Get bookings count
-          const { count: bookings, error: bookingsError } = await supabase
-            .from("bookings")
-            .select("*", { count: "exact", head: true })
-            .eq("client_id", user.id)
+          // Safely fetch bookings
+          let bookings = []
+          try {
+            const response = await supabase.from("bookings").select("id").eq("client_id", user.id)
 
-          if (!bookingsError && bookings !== null) {
-            setBookingsCount(bookings)
+            // Check if response exists and has data property
+            if (response && response.data) {
+              bookings = response.data
+              setBookingsCount(bookings.length)
+            } else {
+              console.log("No bookings data returned")
+              setBookingsCount(0)
+            }
+
+            // Log any error if it exists
+            if (response && response.error) {
+              console.error("Bookings query error:", response.error)
+            }
+          } catch (err) {
+            console.error("Exception in bookings query:", err)
+            setBookingsCount(0)
           }
 
-          // Get contracts count
-          const { count: contracts, error: contractsError } = await supabase
-            .from("contracts")
-            .select("*", { count: "exact", head: true })
-            .eq("client_id", user.id)
+          // Contracts count
+          try {
+            const response = await supabase.from("contracts").select("id").eq("client_id", user.id)
 
-          if (!contractsError && contracts !== null) {
-            setContractsCount(contracts)
+            if (response && response.data) {
+              setContractsCount(response.data.length)
+            } else {
+              console.log("No contracts data returned")
+              setContractsCount(0)
+            }
+
+            if (response && response.error) {
+              console.error("Contracts query error:", response.error)
+            }
+          } catch (err) {
+            console.error("Exception in contracts query:", err)
+            setContractsCount(0)
           }
 
-          // Get unread messages count
-          const { count: messages, error: messagesError } = await supabase
-            .from("messages")
-            .select("*", { count: "exact", head: true })
-            .eq("recipient_id", user.id)
-            .eq("read", false)
+          // Messages count
+          try {
+            const response = await supabase.from("messages").select("id").eq("recipient_id", user.id)
 
-          if (!messagesError && messages !== null) {
-            setMessagesCount(messages)
+            if (response && response.data) {
+              // Filter for unread messages client-side
+              const unreadCount = response.data.filter((msg) => msg.read === false).length
+              setMessagesCount(unreadCount)
+            } else {
+              console.log("No messages data returned")
+              setMessagesCount(0)
+            }
+
+            if (response && response.error) {
+              console.error("Messages query error:", response.error)
+            }
+          } catch (err) {
+            console.error("Exception in messages query:", err)
+            setMessagesCount(0)
           }
         } catch (err) {
-          console.error("Error fetching counts:", err)
+          console.error("Error fetching data counts:", err)
+          setDataError("Failed to load dashboard data. Please try again later.")
         }
+      } catch (err) {
+        console.error("Global error in loadData:", err)
+        setDataError("An unexpected error occurred. Please try again later.")
       } finally {
         setLoading(false)
       }
@@ -127,7 +165,14 @@ export function DashboardContent() {
   }, [])
 
   if (loading) {
-    return <div>Loading...</div>
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mb-4"></div>
+          <p>Loading dashboard...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -140,6 +185,14 @@ export function DashboardContent() {
             The Supabase integration is not properly configured. Please set up your environment variables. You are
             currently viewing demo data.
           </AlertDescription>
+        </Alert>
+      )}
+
+      {dataError && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Data Loading Error</AlertTitle>
+          <AlertDescription>{dataError}</AlertDescription>
         </Alert>
       )}
 
@@ -174,7 +227,7 @@ export function DashboardContent() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <Card className="overflow-hidden">
               <CardHeader className="pb-3 bg-gradient-to-r from-purple-500 to-blue-500 text-white">
-                <CardTitle>Welcome, {profile?.full_name || user.email}</CardTitle>
+                <CardTitle>Welcome, {profile?.full_name || user?.email || "User"}</CardTitle>
                 <CardDescription className="text-white text-opacity-90">
                   {userRole ? `You are logged in as a ${userRole}` : "You don't have a role assigned yet"}
                 </CardDescription>
@@ -221,7 +274,7 @@ export function DashboardContent() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1">
                       <p className="text-sm text-muted-foreground">Email</p>
-                      <p className="font-medium">{user.email}</p>
+                      <p className="font-medium">{user?.email || "Not available"}</p>
                     </div>
                     <div className="space-y-1">
                       <p className="text-sm text-muted-foreground">Role</p>
@@ -277,12 +330,14 @@ export function DashboardContent() {
                       Messages
                     </Link>
                   </Button>
-                  <Button asChild variant="outline" className="w-full justify-start">
-                    <Link href={`/${userRole}/dashboard`}>
-                      <Users className="mr-2 h-4 w-4" />
-                      {userRole} Dashboard
-                    </Link>
-                  </Button>
+                  {userRole && (
+                    <Button asChild variant="outline" className="w-full justify-start">
+                      <Link href={`/${userRole}/dashboard`}>
+                        <Users className="mr-2 h-4 w-4" />
+                        {userRole} Dashboard
+                      </Link>
+                    </Button>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -385,7 +440,7 @@ export function DashboardContent() {
                   <h3 className="font-medium">Personal Information</h3>
                   <div className="space-y-1">
                     <p className="text-sm text-muted-foreground">Email</p>
-                    <p>{user.email}</p>
+                    <p>{user?.email || "Not available"}</p>
                   </div>
                   <div className="space-y-1">
                     <p className="text-sm text-muted-foreground">Name</p>
@@ -405,14 +460,16 @@ export function DashboardContent() {
                   </div>
                   <div className="space-y-1">
                     <p className="text-sm text-muted-foreground">Member Since</p>
-                    <p>{user.created_at ? new Date(user.created_at).toLocaleDateString() : "Unknown"}</p>
+                    <p>{user?.created_at ? new Date(user.created_at).toLocaleDateString() : "Unknown"}</p>
                   </div>
                   <div className="space-y-1">
                     <p className="text-sm text-muted-foreground">Last Login</p>
                     <p>
-                      {user.last_sign_in_at
+                      {user?.last_sign_in_at
                         ? new Date(user.last_sign_in_at).toLocaleDateString()
-                        : new Date(user.created_at || Date.now()).toLocaleDateString()}
+                        : user?.created_at
+                          ? new Date(user.created_at).toLocaleDateString()
+                          : new Date().toLocaleDateString()}
                     </p>
                   </div>
                 </div>

@@ -117,12 +117,14 @@ function createDummyClient() {
     phone: "555-123-4567",
   }
 
+  // Create a more robust dummy client with better method chaining support
   return {
     auth: {
       getSession: async () => ({
         data: {
           session: {
             user: demoUser,
+            expires_at: Math.floor(Date.now() / 1000) + 3600,
           },
         },
         error: null,
@@ -150,31 +152,106 @@ function createDummyClient() {
         data: {
           session: {
             user: demoUser,
+            expires_at: Math.floor(Date.now() / 1000) + 3600,
           },
         },
         error: null,
       }),
     },
     from: (table) => {
-      return {
-        select: (columns) => ({
-          eq: (column, value) => ({
-            single: async () => {
-              if (table === "profiles" && value === "demo-user-id") {
-                return { data: demoProfile, error: null }
+      // Create a query builder with proper method chaining
+      const queryBuilder = {
+        select: (columns) => {
+          const filtered = {
+            eq: (column, value) => {
+              // Support for chaining multiple eq calls
+              return {
+                ...filtered,
+                eq: (nextColumn, nextValue) => {
+                  return filtered
+                },
+                single: async () => {
+                  if (table === "profiles" && value === "demo-user-id") {
+                    return { data: demoProfile, error: null }
+                  }
+                  return { data: null, error: null }
+                },
+                count: (countOption) => {
+                  // Return demo counts for different tables
+                  if (table === "bookings") return { count: 3, error: null }
+                  if (table === "contracts") return { count: 2, error: null }
+                  if (table === "messages") return { count: 5, error: null }
+                  return { count: 0, error: null }
+                },
+                limit: (limit) => filtered,
+                order: (column, options) => filtered,
+                range: (from, to) => filtered,
+                then: (callback) => Promise.resolve(callback({ data: [], error: null })),
               }
-              return { data: null, error: null }
             },
-            count: (countOption) => {
-              // Return demo counts for different tables
-              if (table === "bookings") return { count: 3, error: null }
-              if (table === "contracts") return { count: 2, error: null }
-              if (table === "messages") return { count: 5, error: null }
-              return { count: 0, error: null }
-            },
+            neq: () => filtered,
+            gt: () => filtered,
+            lt: () => filtered,
+            gte: () => filtered,
+            lte: () => filtered,
+            like: () => filtered,
+            ilike: () => filtered,
+            is: () => filtered,
+            in: () => filtered,
+            contains: () => filtered,
+            containedBy: () => filtered,
+            rangeLt: () => filtered,
+            rangeGt: () => filtered,
+            rangeGte: () => filtered,
+            rangeLte: () => filtered,
+            rangeAdjacent: () => filtered,
+            overlaps: () => filtered,
+            textSearch: () => filtered,
+            filter: () => filtered,
+            not: () => filtered,
+            or: () => filtered,
+            and: () => filtered,
+            limit: () => filtered,
+            order: () => filtered,
+            range: () => filtered,
+            single: async () => ({ data: null, error: null }),
+            maybeSingle: async () => ({ data: null, error: null }),
+            then: (callback) => Promise.resolve(callback({ data: [], error: null })),
+          }
+          return filtered
+        },
+        insert: () => ({
+          select: () => ({
+            then: (callback) => Promise.resolve(callback({ data: null, error: null })),
           }),
+          then: (callback) => Promise.resolve(callback({ data: null, error: null })),
+        }),
+        update: () => ({
+          eq: () => ({
+            then: (callback) => Promise.resolve(callback({ data: null, error: null })),
+          }),
+          then: (callback) => Promise.resolve(callback({ data: null, error: null })),
+        }),
+        delete: () => ({
+          eq: () => ({
+            then: (callback) => Promise.resolve(callback({ data: null, error: null })),
+          }),
+          then: (callback) => Promise.resolve(callback({ data: null, error: null })),
+        }),
+        rpc: (fn, params) => ({
+          then: (callback) => Promise.resolve(callback({ data: null, error: null })),
         }),
       }
+      return queryBuilder
+    },
+    storage: {
+      from: (bucket) => ({
+        upload: async () => ({ data: { path: "demo-path" }, error: null }),
+        download: async () => ({ data: new Blob(), error: null }),
+        getPublicUrl: () => ({ data: { publicUrl: "https://example.com/demo-image.jpg" } }),
+        list: async () => ({ data: [], error: null }),
+        remove: async () => ({ data: null, error: null }),
+      }),
     },
   } as unknown as ReturnType<typeof createClient<Database>>
 }

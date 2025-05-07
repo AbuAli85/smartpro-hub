@@ -1,160 +1,163 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { useForm } from "react-hook-form"
-import { zodResolver } from "@hookform/resolvers/zod"
-import * as z from "zod"
-import { supabase } from "@/lib/supabase/client"
-import { useAuth } from "@/lib/auth/auth-context"
+import type React from "react"
+
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { toast } from "@/hooks/use-toast"
-import type { Tables } from "@/lib/supabase/client"
-
-const profileSchema = z.object({
-  firstName: z.string().min(2, { message: "First name must be at least 2 characters" }),
-  lastName: z.string().min(2, { message: "Last name must be at least 2 characters" }),
-  email: z.string().email({ message: "Please enter a valid email address" }).optional(),
-})
-
-type ProfileFormValues = z.infer<typeof profileSchema>
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { useAuth } from "@/components/auth/auth-provider"
+import { useToast } from "@/components/ui/use-toast"
 
 export default function ProfilePage() {
-  const { user, session } = useAuth()
+  const { user } = useAuth()
+  const { toast } = useToast()
   const [isLoading, setIsLoading] = useState(false)
-  const [profile, setProfile] = useState<Tables<"profiles"> | null>(null)
-  const [mounted, setMounted] = useState(false)
-
-  const form = useForm<ProfileFormValues>({
-    resolver: zodResolver(profileSchema),
-    defaultValues: {
-      firstName: "",
-      lastName: "",
-      email: "",
-    },
+  const [profileData, setProfileData] = useState({
+    fullName: "John Doe",
+    email: user?.email || "",
+    phone: "+1 (555) 123-4567",
+    company: "Acme Inc.",
+    position: "CEO",
+    bio: "Experienced business professional with over 10 years in the industry.",
   })
 
-  useEffect(() => {
-    setMounted(true)
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target
+    setProfileData((prev) => ({ ...prev, [name]: value }))
+  }
 
-    async function fetchProfile() {
-      if (!user) return
-
-      // Type assertion to ensure user.id is treated as a string
-      const userId = user.id as string
-
-      const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).single()
-
-      if (error) {
-        console.error("Error fetching profile:", error)
-        return
-      }
-
-      setProfile(data)
-      form.reset({
-        firstName: data.first_name || "",
-        lastName: data.last_name || "",
-        email: user.email || "",
-      })
-    }
-
-    if (mounted && user) {
-      fetchProfile()
-    }
-  }, [user, form, mounted])
-
-  async function onSubmit(data: ProfileFormValues) {
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
     setIsLoading(true)
 
-    try {
-      if (!user) {
-        throw new Error("User not found")
-      }
-
-      // Type assertion to ensure user.id is treated as a string
-      const userId = user.id as string
-
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          first_name: data.firstName,
-          last_name: data.lastName,
-        })
-        .eq("id", userId)
-
-      if (error) {
-        throw error
-      }
-
+    // Simulate API call
+    setTimeout(() => {
+      setIsLoading(false)
       toast({
         title: "Profile updated",
         description: "Your profile has been updated successfully.",
       })
-    } catch (error) {
-      console.error("Error updating profile:", error)
-      const errorMessage = error instanceof Error ? error.message : "An unknown error occurred"
-      toast({
-        title: "Error",
-        description: errorMessage,
-        variant: "destructive",
-      })
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  // Prevent hydration mismatch
-  if (!mounted) {
-    return null
+    }, 1000)
   }
 
   return (
-    <div className="max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold mb-6">Profile</h1>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Your Profile</CardTitle>
-          <CardDescription>Update your personal information</CardDescription>
-        </CardHeader>
-        <form onSubmit={form.handleSubmit(onSubmit)}>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" disabled value={user?.email || ""} />
-              <p className="text-sm text-muted-foreground">Your email cannot be changed</p>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight">Profile</h2>
+          <p className="text-muted-foreground">Manage your account settings and profile information.</p>
+        </div>
+      </div>
+      <Tabs defaultValue="general" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="general">General</TabsTrigger>
+          <TabsTrigger value="password">Password</TabsTrigger>
+          <TabsTrigger value="notifications">Notifications</TabsTrigger>
+        </TabsList>
+        <TabsContent value="general" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Profile</CardTitle>
+              <CardDescription>Update your personal information.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex flex-col items-center space-y-2 sm:flex-row sm:space-x-4 sm:space-y-0">
+                <Avatar className="h-24 w-24">
+                  <AvatarImage src="/generic-person.png" alt="John Doe" />
+                  <AvatarFallback>JD</AvatarFallback>
+                </Avatar>
+                <div className="flex flex-col space-y-2">
+                  <Button variant="outline" size="sm">
+                    Upload new photo
+                  </Button>
+                  <Button variant="ghost" size="sm">
+                    Remove photo
+                  </Button>
+                </div>
+              </div>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="fullName">Full Name</Label>
+                    <Input id="fullName" name="fullName" value={profileData.fullName} onChange={handleChange} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                      id="email"
+                      name="email"
+                      type="email"
+                      value={profileData.email}
+                      onChange={handleChange}
+                      disabled
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">Phone</Label>
+                    <Input id="phone" name="phone" value={profileData.phone} onChange={handleChange} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="company">Company</Label>
+                    <Input id="company" name="company" value={profileData.company} onChange={handleChange} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="position">Position</Label>
+                    <Input id="position" name="position" value={profileData.position} onChange={handleChange} />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="bio">Bio</Label>
+                  <Textarea id="bio" name="bio" value={profileData.bio} onChange={handleChange} rows={4} />
+                </div>
+                <Button type="submit" disabled={isLoading}>
+                  {isLoading ? "Saving..." : "Save changes"}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="password" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Password</CardTitle>
+              <CardDescription>Change your password.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="firstName">First Name</Label>
-                <Input id="firstName" {...form.register("firstName")} />
-                {form.formState.errors.firstName && (
-                  <p className="text-sm text-red-500">{form.formState.errors.firstName.message}</p>
-                )}
+                <Label htmlFor="current-password">Current password</Label>
+                <Input id="current-password" type="password" />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="lastName">Last Name</Label>
-                <Input id="lastName" {...form.register("lastName")} />
-                {form.formState.errors.lastName && (
-                  <p className="text-sm text-red-500">{form.formState.errors.lastName.message}</p>
-                )}
+                <Label htmlFor="new-password">New password</Label>
+                <Input id="new-password" type="password" />
               </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Role</Label>
-              <Input disabled value={profile?.role || ""} />
-              <p className="text-sm text-muted-foreground">Your role can only be changed by an administrator</p>
-            </div>
-          </CardContent>
-          <CardFooter>
-            <Button type="submit" disabled={isLoading}>
-              {isLoading ? "Saving..." : "Save Changes"}
-            </Button>
-          </CardFooter>
-        </form>
-      </Card>
+              <div className="space-y-2">
+                <Label htmlFor="confirm-password">Confirm password</Label>
+                <Input id="confirm-password" type="password" />
+              </div>
+            </CardContent>
+            <CardFooter>
+              <Button>Save password</Button>
+            </CardFooter>
+          </Card>
+        </TabsContent>
+        <TabsContent value="notifications" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Notifications</CardTitle>
+              <CardDescription>Manage your notification preferences.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p>Notification settings will be added here.</p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

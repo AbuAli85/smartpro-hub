@@ -1,109 +1,95 @@
 import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
-import type { Database } from "@/types/supabase"
 
-// Export a config to specify that this middleware should use the Node.js runtime
-export const config = {
-  matcher: ["/dashboard/:path*", "/login", "/register", "/"],
-  runtime: "nodejs", // Explicitly use Node.js runtime instead of Edge
-}
-
-// Update the middleware function to include a check for redirect loops
+// Update the middleware function to better handle protected routes
 export async function middleware(req: NextRequest) {
-  // Create a response object that we can modify
-  const res = NextResponse.next()
+  // Get the current URL and path
+  const url = req.nextUrl
+  const path = url.pathname
 
-  // Check if we're already in a redirect loop
-  const redirectCount = Number.parseInt(req.headers.get("x-redirect-count") || "0")
-
-  // If we've redirected too many times, just proceed without redirecting
-  if (redirectCount > 3) {
-    console.error("Redirect loop detected! Path:", req.nextUrl.pathname)
-    console.error("Breaking the loop and proceeding without redirect")
+  // Skip middleware for static assets, API routes, and debug pages
+  if (
+    path.startsWith("/_next/") ||
+    path.startsWith("/api/") ||
+    path.startsWith("/favicon.ico") ||
+    path.includes(".") || // Skip files with extensions
+    path === "/auth/debug" || // Skip the debug page
+    url.searchParams.has("debug") // Skip if debug parameter is present
+  ) {
     return NextResponse.next()
   }
 
-  const supabase = createMiddlewareClient<Database>({ req, res });
-  const { data: { session } } = await supabase.auth.getSession();
+  // Create a response to modify
+  const res = NextResponse.next()
 
-  if (!session) {
-    return NextResponse.redirect(new URL("/login", req.url));
-  }
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", session.user.id)
-    .single();
-
-  if (profile?.role === "admin") {
-    return NextResponse.redirect(new URL("/dashboard/admin", req.url));
-  } else if (profile?.role === "provider") {
-    return NextResponse.redirect(new URL("/dashboard/provider", req.url));
-  } else {
-    return NextResponse.redirect(new URL("/dashboard/client", req.url));
-  }
-
-
-
-  // Create a Supabase client specifically for the middleware
-  const supabase = createMiddlewareClient<Database>({ req, res })
+  // Create Supabase client
+  const supabase = createMiddlewareClient({ req, res })
 
   try {
-    // Get the session - this will also refresh the session if needed
+    // Get the user session
     const {
       data: { session },
+      error,
     } = await supabase.auth.getSession()
 
-    console.log("Middleware - Path:", req.nextUrl.pathname)
-    console.log("Middleware - Session:", session ? `Exists (User: ${session.user.email})` : "None")
+    // Handle session error gracefully
+    if (error) {
+      console.error("Middleware session error:", error.message)
 
-    // If no session and trying to access protected routes
-    if (!session && req.nextUrl.pathname.startsWith("/dashboard")) {
-      console.log("Middleware - Redirecting to login (no session)")
-
-      // Check if we're already on the login page to prevent loops
-      if (req.nextUrl.pathname === "/login") {
-        console.log("Already on login page, not redirecting")
-        return res
+      // If it's just a missing session and trying to access a protected route, redirect to login
+      if (error.message.includes("Auth session missing") && isProtectedRoute(path)) {
+        return NextResponse.redirect(new URL(`/auth/login?redirectedFrom=${encodeURIComponent(path)}`, req.url))
       }
 
-      const redirectUrl = new URL("/login", req.url)
-      redirectUrl.searchParams.set("redirectedFrom", req.nextUrl.pathname)
-
-      // Add redirect count header to detect loops
-      const redirectRes = NextResponse.redirect(redirectUrl)
-      redirectRes.headers.set("x-redirect-count", (redirectCount + 1).toString())
-      return redirectRes
+      // For other errors, just continue
+      return res
     }
 
-    // Check for role-based access
-    if (session && req.nextUrl.pathname.startsWith("/dashboard/admin")) {
-      try {
-        const { data: profile } = await supabase.from("profiles").select("role").eq("id", session.user.id).single()
-        console.log("Middleware - User role:", profile?.role)
-
-        if (profile?.role !== "admin") {
-          console.log("Middleware - Redirecting to dashboard (not admin)")
-          const redirectUrl = new URL("/dashboard", req.url)
-          return NextResponse.redirect(redirectUrl)
-        }
-      } catch (error) {
-        console.error("Error fetching profile in middleware:", error)
-      }
+    // If user is not logged in and tries to access a protected route, redirect to login
+    if (!session && isProtectedRoute(path)) {
+      return NextResponse.redirect(new URL(`/auth/login?redirectedFrom=${encodeURIComponent(path)}`, req.url))
     }
 
-    // If already logged in and trying to access login/register pages
-    if (session && (req.nextUrl.pathname === "/login" || req.nextUrl.pathname === "/register")) {
-      console.log("Middleware - Redirecting to dashboard (already logged in)")
-      const redirectUrl = new URL("/dashboard", req.url)
-      return NextResponse.redirect(redirectUrl)
+    // If user is logged in and tries to access auth routes, redirect to dashboard
+    if (session && isAuthRoute(path)) {
+      return NextResponse.redirect(new URL("/dashboard", req.url))
+    }
+
+    // If user is logged in and accessing the root path, redirect to dashboard
+    if (session && path === "/") {
+      return NextResponse.redirect(new URL("/dashboard", req.url))
     }
 
     return res
-  } catch (error) {
-    console.error("Middleware error:", error)
+  } catch (e) {
+    console.error("Middleware error:", e)
+
+    // If there's an error and the user is trying to access a protected route, redirect to login
+    if (isProtectedRoute(path)) {
+      return NextResponse.redirect(new URL(`/auth/login?redirectedFrom=${encodeURIComponent(path)}`, req.url))
+    }
+
     return res
   }
+}
+
+// Helper function to check if a route is protected
+function isProtectedRoute(pathname: string): boolean {
+  return (
+    pathname.startsWith("/dashboard") ||
+    pathname.startsWith("/admin") ||
+    pathname.startsWith("/provider") ||
+    pathname.startsWith("/client") ||
+    pathname === "/profile-setup"
+  )
+}
+
+// Helper function to check if a route is an auth route
+function isAuthRoute(pathname: string): boolean {
+  return pathname === "/auth/login" || pathname === "/auth/register" || pathname === "/auth/reset-password"
+}
+
+export const config = {
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)", "/"],
 }

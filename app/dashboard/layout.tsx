@@ -1,49 +1,23 @@
 import type React from "react"
-import { redirect } from "next/navigation"
-import { createClient } from "@/lib/supabase/server"
-import { DashboardSidebar } from "@/components/dashboard/sidebar"
-import { DashboardHeader } from "@/components/dashboard/header"
-import { SessionDebug } from "@/components/auth/session-debug"
+import { Header } from "@/components/dashboard/header"
+import { Sidebar } from "@/components/dashboard/sidebar"
+import { Toaster } from "@/components/ui/toaster"
 
-export default async function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
-  const supabase = await createClient()
-
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-
-  if (!session) {
-    // Add a console log to help debug
-    console.log("Dashboard layout: No session found, redirecting to login")
-    redirect("/login?redirectedFrom=/dashboard")
-  }
-
-  console.log("Dashboard layout: Session found, rendering dashboard")
-
-  // Fetch profile data
-  const { data: profile, error } = await supabase
-    .from("profiles")
-    .select("role, first_name, last_name")
-    .eq("id", session.user.id)
-    .single()
-
-  if (error) {
-    console.error("Error fetching profile:", error)
-    // Handle the error appropriately
-  }
-
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex h-screen bg-gray-100 dark:bg-gray-900">
-      <DashboardSidebar userRole={profile?.role} />
-      <div className="flex flex-col flex-1 overflow-hidden">
-        <DashboardHeader user={session.user} profile={profile} />
-        <main className="flex-1 overflow-y-auto p-4">{children}</main>
+    <div className="h-screen flex flex-col overflow-hidden bg-gray-50 dark:bg-gray-900">
+      <div className="flex flex-1 overflow-hidden">
+        <div className="hidden md:flex md:w-64 md:flex-col md:min-h-screen border-r border-gray-200 dark:border-gray-800">
+          <Sidebar />
+        </div>
+        <div className="flex flex-col flex-1 overflow-hidden">
+          <Header />
+          <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
+            <div className="mx-auto max-w-7xl">{children}</div>
+          </main>
+        </div>
       </div>
-      {process.env.NODE_ENV === "development" && <SessionDebug />}
+      <Toaster />
     </div>
   )
 }

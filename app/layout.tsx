@@ -1,39 +1,32 @@
 import type React from "react"
 import "./globals.css"
 import type { Metadata } from "next"
+import { Inter } from "next/font/google"
 import { ThemeProvider } from "@/components/theme-provider"
-import { AuthProvider } from "@/lib/auth/auth-context"
 import { Toaster } from "@/components/ui/toaster"
+import { AuthProvider } from "@/components/auth/auth-provider"
+import { AuthErrorBoundary } from "@/components/auth/auth-error-boundary"
+
+const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "SmartPRO Business Services Hub",
-  description: "A platform for business service providers and clients",
+  title: "SmartPRO - Business Services Hub",
+  description: "A comprehensive platform for business services",
     generator: 'v0.dev'
 }
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        {/* Load Inter font using CSS instead of next/font */}
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
-          rel="stylesheet"
-        />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
       </head>
-      <body className="font-sans" suppressHydrationWarning>
+      <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <AuthProvider>
-            {children}
-            <Toaster />
+            <AuthErrorBoundary>{children}</AuthErrorBoundary>
           </AuthProvider>
+          <Toaster />
         </ThemeProvider>
       </body>
     </html>

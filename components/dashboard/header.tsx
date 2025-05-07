@@ -1,10 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { useAuth } from "@/lib/auth/auth-context"
+import { useAuth } from "@/components/auth/auth-provider"
 import { Button } from "@/components/ui/button"
+import { Menu, Bell, Search } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,130 +11,81 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import { Sidebar } from "@/components/dashboard/sidebar"
+import Link from "next/link"
+import { usePathname } from "next/navigation"
+import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Bell, Menu, Settings, User } from "lucide-react"
 
-interface DashboardHeaderProps {
-  user: any
-  profile: any
+interface HeaderProps {
+  title?: string
 }
 
-export function DashboardHeader({ user, profile }: DashboardHeaderProps) {
-  const { signOut } = useAuth()
-  const router = useRouter()
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => {
-    setMounted(true)
-  }, [])
-
-  const handleSignOut = async () => {
-    await signOut()
-    router.push("/")
-  }
-
-  // Get initials for avatar fallback
-  const getInitials = () => {
-    if (!mounted) return ""
-
-    const firstName = profile?.first_name || ""
-    const lastName = profile?.last_name || ""
-    return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase()
-  }
-
-  // Prevent hydration mismatch
-  if (!mounted) {
-    return (
-      <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background px-4 md:px-6">
-        <div className="flex flex-1 items-center gap-4">
-          <Button variant="outline" size="icon" className="md:hidden">
-            <span className="sr-only">Toggle menu</span>
-            <Menu className="h-5 w-5" />
-          </Button>
-          <h1 className="text-xl font-semibold">SmartPRO</h1>
-        </div>
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon">
-            <Bell className="h-5 w-5" />
-            <span className="sr-only">Notifications</span>
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-                <Avatar className="h-8 w-8">
-                  <AvatarFallback></AvatarFallback>
-                </Avatar>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>My Account</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem>
-                <User className="mr-2 h-4 w-4" />
-                <span>Profile</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <Settings className="mr-2 h-4 w-4" />
-                <span>Settings</span>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem>
-                <span>Log out</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </header>
-    )
-  }
+export function Header({ title }: HeaderProps) {
+  const { user, signOut } = useAuth()
+  const pathname = usePathname()
+  const pageName = title || pathname?.split("/").pop()?.replace(/-/g, " ") || "Dashboard"
+  const userInitials = user?.email ? user.email.charAt(0).toUpperCase() : "U"
 
   return (
-    <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background px-4 md:px-6">
-      <div className="flex flex-1 items-center gap-4">
-        <Button variant="outline" size="icon" className="md:hidden">
-          <span className="sr-only">Toggle menu</span>
-          <Menu className="h-5 w-5" />
-        </Button>
-        <h1 className="text-xl font-semibold">SmartPRO</h1>
+    <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-white dark:bg-gray-900 px-4 md:px-6">
+      <div className="md:hidden">
+        <Sheet>
+          <SheetTrigger asChild>
+            <Button variant="outline" size="icon" className="mr-2">
+              <Menu className="h-5 w-5" />
+              <span className="sr-only">Toggle navigation menu</span>
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="left" className="p-0">
+            <Sidebar />
+          </SheetContent>
+        </Sheet>
       </div>
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon">
+
+      <div className="flex items-center gap-2">
+        <h1 className="text-lg font-semibold capitalize">{pageName}</h1>
+      </div>
+
+      <div className="hidden md:flex flex-1 items-center gap-4 md:ml-8">
+        <div className="relative w-full max-w-md">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500 dark:text-gray-400" />
+          <Input type="search" placeholder="Search..." className="w-full bg-gray-100 dark:bg-gray-800 border-0 pl-8" />
+        </div>
+      </div>
+
+      <div className="ml-auto flex items-center gap-4">
+        <Button variant="outline" size="icon" className="relative">
           <Bell className="h-5 w-5" />
+          <Badge className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 flex items-center justify-center">
+            3
+          </Badge>
           <span className="sr-only">Notifications</span>
         </Button>
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+            <Button variant="outline" size="icon" className="rounded-full">
               <Avatar className="h-8 w-8">
-                <AvatarImage src={user?.user_metadata?.avatar_url || ""} alt={user?.email || "User"} />
-                <AvatarFallback>{getInitials()}</AvatarFallback>
+                <AvatarImage src="/placeholder.svg" alt={user?.email || "User"} />
+                <AvatarFallback>{userInitials}</AvatarFallback>
               </Avatar>
+              <span className="sr-only">Toggle user menu</span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuLabel>
-              {profile?.first_name ? `${profile.first_name} ${profile.last_name}` : user?.email}
-            </DropdownMenuLabel>
-            <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-              {profile?.role || "User"}
-            </DropdownMenuLabel>
+            <DropdownMenuLabel>My Account</DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
-              <Link href="/dashboard/profile">
-                <User className="mr-2 h-4 w-4" />
-                <span>Profile</span>
-              </Link>
+              <Link href="/dashboard/profile">Profile</Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
-              <Link href="/dashboard/settings">
-                <Settings className="mr-2 h-4 w-4" />
-                <span>Settings</span>
-              </Link>
+              <Link href="/dashboard/settings">Settings</Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleSignOut}>
-              <span>Log out</span>
-            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => signOut()}>Log out</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

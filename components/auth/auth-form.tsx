@@ -1,332 +1,316 @@
 "use client"
 
+import type React from "react"
 import { useState } from "react"
-import { useRouter } from "next/navigation"
-import { zodResolver } from "@hookform/resolvers/zod"
-import { useForm } from "react-hook-form"
-import * as z from "zod"
-import { supabase } from "@/lib/supabase/client"
+import { useSearchParams } from "next/navigation"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Loader2, AlertTriangle } from "lucide-react"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import Link from "next/link"
+import type { UserRole } from "@/lib/supabase/database.types"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { toast } from "@/hooks/use-toast"
-import { LoadingSpinner } from "@/components/ui/loading-spinner"
 
-// Define a more specific type for registration roles
-type RegistrationRole = "client" | "provider"
-
-interface AuthFormProps {
-  redirectPath?: string
+type AuthFormProps = {
+  type?: "login" | "register"
 }
 
-const loginSchema = z.object({
-  email: z.string().email({ message: "Please enter a valid email address" }),
-  password: z.string().min(6, { message: "Password must be at least 6 characters" }),
-})
+// Main component function
+function AuthForm({ type = "login" }: AuthFormProps) {
+  const searchParams = useSearchParams()
+  const redirectedFrom = searchParams.get("redirectedFrom") || "/dashboard"
+  const errorParam = searchParams.get("error")
 
-const registerSchema = z.object({
-  email: z.string().email({ message: "Please enter a valid email address" }),
-  password: z.string().min(6, { message: "Password must be at least 6 characters" }),
-  firstName: z.string().min(2, { message: "First name must be at least 2 characters" }),
-  lastName: z.string().min(2, { message: "Last name must be at least 2 characters" }),
-  role: z.enum(["client", "provider"], {
-    required_error: "Please select a role",
-    invalid_type_error: "Role must be either client or provider",
-  }),
-})
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [fullName, setFullName] = useState("")
+  const [role, setRole] = useState<UserRole>("client")
+  const [loading, setLoading] = useState(false)
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
+  const [activeTab, setActiveTab] = useState<"login" | "register">(type)
 
-type LoginFormValues = z.infer<typeof loginSchema>
-type RegisterFormValues = z.infer<typeof registerSchema>
+  const supabase = createClientComponentClient()
 
-export function AuthForm({ redirectPath = "/dashboard" }: AuthFormProps) {
-  const [isLoading, setIsLoading] = useState(false)
-  const [authError, setAuthError] = useState<string | null>(null)
-  const router = useRouter()
-
-  const loginForm = useForm<LoginFormValues>({
-    resolver: zodResolver(loginSchema),
-    defaultValues: {
-      email: "",
-      password: "",
-    },
-  })
-
-  const registerForm = useForm<RegisterFormValues>({
-    resolver: zodResolver(registerSchema),
-    defaultValues: {
-      email: "",
-      password: "",
-      firstName: "",
-      lastName: "",
-      role: "client",
-    },
-  })
-
-  async function onLoginSubmit(data: LoginFormValues) {
-    setIsLoading(true)
-    setAuthError(null)
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    setMessage(null)
 
     try {
-      console.log("Attempting login with:", data.email)
-
-      // Then attempt to log in
-      const { data: authData, error } = await supabase.auth.signInWithPassword({
-        email: data.email,
-        password: data.password,
+      // Sign in with email and password
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
       })
 
-      if (error) {
-        console.error("Login error:", error)
-        setAuthError(error.message)
-        toast({
-          title: "Error",
-          description: error.message,
-          variant: "destructive",
-        })
-        setIsLoading(false)
-        return
+      if (authError) {
+        throw authError
       }
 
-      console.log("Login successful:", authData)
-
-      // Verify the session was created
-      const { data: sessionCheck } = await supabase.auth.getSession()
-      console.log("Session after login:", sessionCheck.session ? "exists" : "none")
-
-      if (!sessionCheck.session) {
-        setAuthError("Session could not be established. Please try again.")
-        toast({
-          title: "Error",
-          description: "Session could not be established. Please try again.",
-          variant: "destructive",
-        })
-        setIsLoading(false)
-        return
+      if (!authData.user) {
+        throw new Error("Authentication successful but no user returned")
       }
 
-      toast({
-        title: "Success",
-        description: "You have been logged in.",
+      // Show success message
+      setMessage({
+        type: "success",
+        text: "Login successful! Redirecting...",
       })
 
-      // Use a timeout to ensure state updates complete before navigation
-      setTimeout(() => {
-        // Force a hard navigation to break out of any potential loops
-        window.location.href = redirectPath
-      }, 100)
-    } catch (error) {
-      console.error("Unexpected error during login:", error)
-      const errorMessage = error instanceof Error ? error.message : "An unknown error occurred"
-      setAuthError(errorMessage)
-      toast({
-        title: "Error",
-        description: errorMessage,
-        variant: "destructive",
+      // Simple redirect to dashboard - let the server handle role-based redirects
+      window.location.href = redirectedFrom || "/dashboard"
+    } catch (error: any) {
+      console.error("Login error:", error)
+      setMessage({
+        type: "error",
+        text: error.message || "An error occurred during login",
       })
-      setIsLoading(false)
+      setLoading(false)
     }
   }
 
-  async function onRegisterSubmit(data: RegisterFormValues) {
-    setIsLoading(true)
-    setAuthError(null)
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    setMessage(null)
 
     try {
-      console.log("Attempting registration with:", data.email)
-      const { error: signUpError, data: signUpData } = await supabase.auth.signUp({
-        email: data.email,
-        password: data.password,
+      // Create the user
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
         options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
           data: {
-            first_name: data.firstName,
-            last_name: data.lastName,
-            role: data.role,
+            full_name: fullName,
+            role: role,
           },
         },
       })
 
-      if (signUpError) {
-        console.error("Registration error:", signUpError)
-        setAuthError(signUpError.message)
-        toast({
-          title: "Error",
-          description: signUpError.message,
-          variant: "destructive",
-        })
-        setIsLoading(false)
-        return
+      if (error) {
+        throw error
       }
 
-      console.log("Registration successful:", signUpData)
-
-      // Create a new profile for the user
-      if (signUpData.user) {
-        const { error: profileError } = await supabase.from("profiles").insert({
-          id: signUpData.user.id,
-          email: data.email,
-          first_name: data.firstName,
-          last_name: data.lastName,
-          role: data.role,
-          avatar_url: null,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-
-        if (profileError) {
-          console.error("Profile creation error:", profileError)
-          toast({
-            title: "Warning",
-            description: "Account created but profile details could not be saved. Please update your profile later.",
-            variant: "default",
+      // Create the profile manually to ensure it exists
+      if (data.user) {
+        try {
+          const { error: profileError } = await supabase.from("profiles").insert({
+            id: data.user.id,
+            email: data.user.email,
+            full_name: fullName,
+            role: role,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
           })
-        } else {
-          console.log("Profile created successfully")
+
+          if (profileError) {
+            console.error("Error creating profile during registration:", profileError)
+          }
+        } catch (profileError) {
+          console.error("Exception creating profile during registration:", profileError)
+          // Continue with registration flow even if profile creation fails
         }
       }
 
-      toast({
-        title: "Success",
-        description: "Your account has been created. Please check your email for verification.",
+      setMessage({
+        type: "success",
+        text: "Registration successful! Please check your email to confirm your account.",
       })
-
-      router.push("/login")
-    } catch (error) {
-      console.error("Unexpected error during registration:", error)
-      const errorMessage = error instanceof Error ? error.message : "An unknown error occurred"
-      setAuthError(errorMessage)
-      toast({
-        title: "Error",
-        description: errorMessage,
-        variant: "destructive",
+    } catch (error: any) {
+      console.error("Registration error:", error)
+      setMessage({
+        type: "error",
+        text: error.message || "An error occurred during registration",
       })
     } finally {
-      setIsLoading(false)
+      setLoading(false)
     }
   }
 
   return (
-    <Tabs defaultValue="login" className="w-full max-w-md">
-      <TabsList className="grid w-full grid-cols-2">
-        <TabsTrigger value="login">Login</TabsTrigger>
-        <TabsTrigger value="register">Register</TabsTrigger>
-      </TabsList>
-      <TabsContent value="login">
-        <Card>
-          <CardHeader>
-            <CardTitle>Login</CardTitle>
-            <CardDescription>Enter your email and password to access your account</CardDescription>
+    <div className="flex min-h-[100vh] w-full items-center justify-center bg-gray-50 p-4">
+      <div className="w-full max-w-md">
+        {/* Display error from URL parameter if present */}
+        {errorParam && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertTriangle className="h-4 w-4 mr-2" />
+            <AlertDescription>{decodeURIComponent(errorParam)}</AlertDescription>
+          </Alert>
+        )}
+
+        {/* Display redirectedFrom message if present */}
+        {redirectedFrom && redirectedFrom !== "/dashboard" && (
+          <Alert className="mb-4">
+            <AlertDescription>You need to sign in to access {decodeURIComponent(redirectedFrom)}</AlertDescription>
+          </Alert>
+        )}
+
+        <Card className="w-full shadow-lg border border-gray-200">
+          <CardHeader className="space-y-1 pb-6">
+            <CardTitle className="text-2xl font-bold text-center">SmartPRO</CardTitle>
+            <CardDescription className="text-center text-base">Business Services Hub</CardDescription>
           </CardHeader>
-          <form onSubmit={loginForm.handleSubmit(onLoginSubmit)}>
-            <CardContent className="space-y-4">
-              {authError && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-md text-red-600 text-sm">{authError}</div>
-              )}
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" placeholder="your@email.com" {...loginForm.register("email")} />
-                {loginForm.formState.errors.email && (
-                  <p className="text-sm text-red-500">{loginForm.formState.errors.email.message}</p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input id="password" type="password" placeholder="••••••••" {...loginForm.register("password")} />
-                {loginForm.formState.errors.password && (
-                  <p className="text-sm text-red-500">{loginForm.formState.errors.password.message}</p>
-                )}
-              </div>
-            </CardContent>
-            <CardFooter>
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? (
-                  <span className="flex items-center gap-2">
-                    <LoadingSpinner size="sm" /> Logging in...
-                  </span>
-                ) : (
-                  "Login"
-                )}
-              </Button>
-            </CardFooter>
-          </form>
-        </Card>
-      </TabsContent>
-      <TabsContent value="register">
-        <Card>
-          <CardHeader>
-            <CardTitle>Register</CardTitle>
-            <CardDescription>Create a new account to access our services</CardDescription>
-          </CardHeader>
-          <form onSubmit={registerForm.handleSubmit(onRegisterSubmit)}>
-            <CardContent className="space-y-4">
-              {authError && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-md text-red-600 text-sm">{authError}</div>
-              )}
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" placeholder="your@email.com" {...registerForm.register("email")} />
-                {registerForm.formState.errors.email && (
-                  <p className="text-sm text-red-500">{registerForm.formState.errors.email.message}</p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input id="password" type="password" placeholder="••••••••" {...registerForm.register("password")} />
-                {registerForm.formState.errors.password && (
-                  <p className="text-sm text-red-500">{registerForm.formState.errors.password.message}</p>
-                )}
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="firstName">First Name</Label>
-                  <Input id="firstName" placeholder="John" {...registerForm.register("firstName")} />
-                  {registerForm.formState.errors.firstName && (
-                    <p className="text-sm text-red-500">{registerForm.formState.errors.firstName.message}</p>
+          <Tabs
+            value={activeTab}
+            onValueChange={(value) => setActiveTab(value as "login" | "register")}
+            className="w-full"
+          >
+            <TabsList className="grid w-full grid-cols-2 mb-4">
+              <TabsTrigger value="login" className="text-sm font-medium">
+                Login
+              </TabsTrigger>
+              <TabsTrigger value="register" className="text-sm font-medium">
+                Register
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="login" className="mt-0">
+              <form onSubmit={handleLogin}>
+                <CardContent className="space-y-4 pt-0">
+                  {message && (
+                    <Alert variant={message.type === "error" ? "destructive" : "default"}>
+                      <AlertDescription>{message.text}</AlertDescription>
+                    </Alert>
                   )}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="lastName">Last Name</Label>
-                  <Input id="lastName" placeholder="Doe" {...registerForm.register("lastName")} />
-                  {registerForm.formState.errors.lastName && (
-                    <p className="text-sm text-red-500">{registerForm.formState.errors.lastName.message}</p>
+                  <div className="space-y-2">
+                    <Label htmlFor="email" className="text-sm font-medium">
+                      Email
+                    </Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="name@example.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                      className="h-10"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="password" className="text-sm font-medium">
+                        Password
+                      </Label>
+                      <Link href="/auth/reset-password" className="text-sm text-blue-600 hover:underline">
+                        Forgot password?
+                      </Link>
+                    </div>
+                    <Input
+                      id="password"
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      className="h-10"
+                    />
+                  </div>
+                </CardContent>
+                <CardFooter className="pt-4">
+                  <Button type="submit" className="w-full h-10" disabled={loading}>
+                    {loading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Please wait
+                      </>
+                    ) : (
+                      "Sign In"
+                    )}
+                  </Button>
+                </CardFooter>
+              </form>
+            </TabsContent>
+            <TabsContent value="register" className="mt-0">
+              <form onSubmit={handleRegister}>
+                <CardContent className="space-y-4 pt-0">
+                  {message && (
+                    <Alert variant={message.type === "error" ? "destructive" : "default"}>
+                      <AlertDescription>{message.text}</AlertDescription>
+                    </Alert>
                   )}
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="role">I am a</Label>
-                <Select
-                  onValueChange={(value) => registerForm.setValue("role", value as RegistrationRole)}
-                  defaultValue={registerForm.getValues("role")}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select your role" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="client">Client looking for services</SelectItem>
-                    <SelectItem value="provider">Service Provider</SelectItem>
-                  </SelectContent>
-                </Select>
-                {registerForm.formState.errors.role && (
-                  <p className="text-sm text-red-500">{registerForm.formState.errors.role.message}</p>
-                )}
-              </div>
-            </CardContent>
-            <CardFooter>
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? (
-                  <span className="flex items-center gap-2">
-                    <LoadingSpinner size="sm" /> Creating account...
-                  </span>
-                ) : (
-                  "Register"
-                )}
-              </Button>
-            </CardFooter>
-          </form>
+                  <div className="space-y-2">
+                    <Label htmlFor="fullName" className="text-sm font-medium">
+                      Full Name
+                    </Label>
+                    <Input
+                      id="fullName"
+                      placeholder="John Doe"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      required
+                      className="h-10"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="email" className="text-sm font-medium">
+                      Email
+                    </Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="name@example.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                      className="h-10"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="password" className="text-sm font-medium">
+                      Password
+                    </Label>
+                    <Input
+                      id="password"
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      minLength={6}
+                      className="h-10"
+                    />
+                  </div>
+                  <div className="space-y-2 pt-2">
+                    <Label className="text-sm font-medium">I am a:</Label>
+                    <RadioGroup value={role} onValueChange={(value) => setRole(value as UserRole)} className="pt-2">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <RadioGroupItem value="client" id="client" />
+                        <Label htmlFor="client" className="text-sm font-normal">
+                          Client looking for services
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="provider" id="provider" />
+                        <Label htmlFor="provider" className="text-sm font-normal">
+                          Service Provider
+                        </Label>
+                      </div>
+                    </RadioGroup>
+                  </div>
+                </CardContent>
+                <CardFooter className="pt-4">
+                  <Button type="submit" className="w-full h-10" disabled={loading}>
+                    {loading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Please wait
+                      </>
+                    ) : (
+                      "Create Account"
+                    )}
+                  </Button>
+                </CardFooter>
+              </form>
+            </TabsContent>
+          </Tabs>
         </Card>
-      </TabsContent>
-    </Tabs>
+      </div>
+    </div>
   )
 }
+
+// Export as default
+export default AuthForm
+
+// Also provide named export for flexibility
+export { AuthForm }

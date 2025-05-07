@@ -1,184 +1,151 @@
-"use client"
-
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { supabase } from "@/lib/supabase/client"
-import { useAuth } from "@/lib/auth/auth-context"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
-import { toast } from "@/hooks/use-toast"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Plus, Search } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { LoadingSpinner } from "@/components/ui/loading-spinner"
-import type { Tables } from "@/lib/supabase/client"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+
+const users = [
+  {
+    id: "1",
+    name: "John Doe",
+    email: "john.doe@example.com",
+    role: "admin",
+    status: "active",
+    lastActive: "2 hours ago",
+  },
+  {
+    id: "2",
+    name: "Jane Smith",
+    email: "jane.smith@example.com",
+    role: "user",
+    status: "active",
+    lastActive: "1 day ago",
+  },
+  {
+    id: "3",
+    name: "Robert Johnson",
+    email: "robert.j@example.com",
+    role: "manager",
+    status: "active",
+    lastActive: "3 hours ago",
+  },
+  {
+    id: "4",
+    name: "Emily Davis",
+    email: "emily.d@example.com",
+    role: "user",
+    status: "inactive",
+    lastActive: "1 week ago",
+  },
+  {
+    id: "5",
+    name: "Michael Brown",
+    email: "michael.b@example.com",
+    role: "user",
+    status: "active",
+    lastActive: "5 hours ago",
+  },
+  {
+    id: "6",
+    name: "Sarah Wilson",
+    email: "sarah.w@example.com",
+    role: "manager",
+    status: "active",
+    lastActive: "2 days ago",
+  },
+  {
+    id: "7",
+    name: "David Lee",
+    email: "david.l@example.com",
+    role: "user",
+    status: "inactive",
+    lastActive: "2 weeks ago",
+  },
+  {
+    id: "8",
+    name: "Lisa Taylor",
+    email: "lisa.t@example.com",
+    role: "user",
+    status: "active",
+    lastActive: "1 day ago",
+  },
+]
 
 export default function UsersPage() {
-  const { role, profile } = useAuth()
-  const [users, setUsers] = useState<Tables<"profiles">[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [selectedUser, setSelectedUser] = useState<Tables<"profiles"> | null>(null)
-  const router = useRouter()
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => {
-    setMounted(true)
-
-    // Only admin and providers should access this page
-    if (mounted && role !== "admin" && role !== "provider") {
-      router.push("/dashboard")
-      return
-    }
-
-    async function fetchUsers() {
-      setIsLoading(true)
-
-      // If admin, fetch all users
-      // If provider, fetch only clients
-      const query = supabase.from("profiles").select("*")
-
-      if (role === "provider") {
-        query.eq("role", "client")
-      }
-
-      const { data, error } = await query.order("created_at", { ascending: false })
-
-      if (error) {
-        console.error("Error fetching users:", error)
-        toast({
-          title: "Error",
-          description: "Failed to fetch users",
-          variant: "destructive",
-        })
-        return
-      }
-
-      setUsers(data as Tables<"profiles">[])
-      setIsLoading(false)
-    }
-
-    if (mounted && (role === "admin" || role === "provider")) {
-      fetchUsers()
-    }
-  }, [role, router, mounted])
-
-  function getInitials(firstName: string | null, lastName: string | null) {
-    return `${(firstName || "").charAt(0)}${(lastName || "").charAt(0)}`.toUpperCase() || "U"
-  }
-
-  // Prevent hydration mismatch
-  if (!mounted) {
-    return null
-  }
-
-  if (role !== "admin" && role !== "provider") {
-    return null
-  }
-
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">{role === "admin" ? "User Management" : "Clients"}</h1>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-3xl font-bold tracking-tight">Users</h2>
+        <Button>
+          <Plus className="mr-2 h-4 w-4" /> Add User
+        </Button>
       </div>
-
-      {isLoading ? (
-        <div className="flex justify-center p-8">
-          <LoadingSpinner size="lg" />
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            type="search"
+            placeholder="Search users..."
+            className="w-full appearance-none bg-background pl-8 shadow-none md:w-2/3 lg:w-1/3"
+          />
         </div>
-      ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {users.map((user) => (
-            <Card key={user.id} className="overflow-hidden">
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4">
-                  <Avatar className="h-10 w-10">
-                    <AvatarImage src={user.avatar_url || ""} alt={user.email || ""} />
-                    <AvatarFallback>{getInitials(user.first_name, user.last_name)}</AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <CardTitle className="text-base">
-                      {user.first_name ? `${user.first_name} ${user.last_name}` : "User"}
-                    </CardTitle>
-                    <CardDescription className="text-xs">{user.email}</CardDescription>
+        <Button variant="outline" size="sm">
+          Filter by role
+        </Button>
+        <Button variant="outline" size="sm">
+          Filter by status
+        </Button>
+      </div>
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>User</TableHead>
+              <TableHead>Role</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Last Active</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {users.map((user) => (
+              <TableRow key={user.id}>
+                <TableCell>
+                  <div className="flex items-center gap-3">
+                    <Avatar>
+                      <AvatarImage
+                        src={`/abstract-geometric-shapes.png?height=32&width=32&query=${user.name}`}
+                        alt={user.name}
+                      />
+                      <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <div className="font-medium">{user.name}</div>
+                      <div className="text-sm text-muted-foreground">{user.email}</div>
+                    </div>
                   </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-col gap-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Role:</span>
-                    <Badge
-                      variant={user.role === "admin" ? "destructive" : user.role === "provider" ? "default" : "outline"}
-                    >
-                      {user.role}
-                    </Badge>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Joined:</span>
-                    <span className="text-sm">{new Date(user.created_at).toLocaleDateString()}</span>
-                  </div>
-                  <div className="flex justify-end mt-2">
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <Button size="sm" variant="outline" onClick={() => setSelectedUser(user)}>
-                          View Details
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent>
-                        <DialogHeader>
-                          <DialogTitle>User Details</DialogTitle>
-                          <DialogDescription>{selectedUser?.email}</DialogDescription>
-                        </DialogHeader>
-                        <div className="space-y-4 py-4">
-                          <div className="flex items-center gap-4">
-                            <Avatar className="h-16 w-16">
-                              <AvatarImage src={selectedUser?.avatar_url || ""} alt={selectedUser?.email || ""} />
-                              <AvatarFallback>
-                                {selectedUser && getInitials(selectedUser.first_name, selectedUser.last_name)}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div>
-                              <h3 className="font-medium">
-                                {selectedUser?.first_name
-                                  ? `${selectedUser.first_name} ${selectedUser.last_name}`
-                                  : "User"}
-                              </h3>
-                              <p className="text-sm text-muted-foreground">{selectedUser?.email}</p>
-                            </div>
-                          </div>
-                          <div className="grid grid-cols-2 gap-4">
-                            <div>
-                              <p className="text-sm font-medium">Role</p>
-                              <p className="text-sm text-muted-foreground">{selectedUser?.role}</p>
-                            </div>
-                            <div>
-                              <p className="text-sm font-medium">Joined</p>
-                              <p className="text-sm text-muted-foreground">
-                                {selectedUser?.created_at && new Date(selectedUser.created_at).toLocaleDateString()}
-                              </p>
-                            </div>
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium">User ID</p>
-                            <p className="text-sm text-muted-foreground break-all">{selectedUser?.id}</p>
-                          </div>
-                        </div>
-                      </DialogContent>
-                    </Dialog>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+                </TableCell>
+                <TableCell>
+                  <Badge variant="outline">{user.role}</Badge>
+                </TableCell>
+                <TableCell>
+                  <Badge variant={user.status === "active" ? "default" : "secondary"}>{user.status}</Badge>
+                </TableCell>
+                <TableCell>{user.lastActive}</TableCell>
+                <TableCell className="text-right">
+                  <Button variant="ghost" size="sm">
+                    Edit
+                  </Button>
+                  <Button variant="ghost" size="sm">
+                    Delete
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   )
 }

@@ -1,73 +1,64 @@
 "use client"
 
-import Link from "next/link"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { AlertCircle, ExternalLink } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { AlertTriangle, RefreshCw } from "lucide-react"
+import { useRouter } from "next/navigation"
+import Link from "next/link"
 
 interface DashboardFallbackProps {
-  error?: Error & { digest?: string }
+  error?: string
+  title?: string
+  description?: string
 }
 
-export function DashboardFallback({ error }: DashboardFallbackProps) {
-  const isSupabaseError =
-    error?.message?.includes("Supabase") ||
-    error?.message?.toLowerCase().includes("database") ||
-    error?.message?.toLowerCase().includes("auth")
+export function DashboardFallback({
+  error = "We're having trouble loading your dashboard data.",
+  title = "Dashboard Unavailable",
+  description = "We're experiencing some technical difficulties. Please try again later.",
+}: DashboardFallbackProps) {
+  const router = useRouter()
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-4">
-      <Card className="mx-auto max-w-md">
+    <div className="container mx-auto py-8">
+      <Card className="w-full max-w-3xl mx-auto">
         <CardHeader>
-          <CardTitle>Dashboard Unavailable</CardTitle>
-          <CardDescription>
-            {isSupabaseError
-              ? "There was a problem connecting to the database."
-              : "There was a problem loading the dashboard."}
-          </CardDescription>
+          <CardTitle>{title}</CardTitle>
+          <CardDescription>{description}</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-6">
           <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Error</AlertTitle>
-            <AlertDescription>{error?.message || "An unknown error occurred."}</AlertDescription>
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Error Loading Dashboard</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
           </Alert>
 
-          {isSupabaseError && (
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                This appears to be a Supabase connection issue. Please check your configuration:
-              </p>
-              <ul className="list-disc pl-5 text-sm space-y-1">
-                <li>Verify your Supabase environment variables are set correctly</li>
-                <li>Check that your Supabase project is running</li>
-                <li>Ensure your IP is allowed in Supabase Auth settings</li>
-              </ul>
-            </div>
-          )}
-        </CardContent>
-        <CardFooter className="flex flex-col space-y-2">
-          <Button asChild className="w-full">
-            <Link href="/setup/deploy">Setup Guide</Link>
-          </Button>
-          <Button variant="outline" asChild className="w-full">
-            <Link href="/debug/supabase">Test Connection</Link>
-          </Button>
-          <div className="w-full pt-2">
-            <Button variant="link" asChild className="w-full">
-              <a
-                href="https://supabase.com/dashboard"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-center"
-              >
-                Supabase Dashboard
-                <ExternalLink className="ml-1 h-3 w-3" />
-              </a>
+          <div className="space-y-2">
+            <h3 className="text-sm font-medium">Troubleshooting Steps:</h3>
+            <ul className="list-disc pl-5 text-sm space-y-1">
+              <li>Check your internet connection</li>
+              <li>Verify that you're logged in correctly</li>
+              <li>Run a system health check to identify issues</li>
+              <li>Contact support if the problem persists</li>
+            </ul>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-3 pt-2">
+            <Button onClick={() => router.refresh()} className="flex items-center gap-2">
+              <RefreshCw className="h-4 w-4" />
+              Refresh Dashboard
+            </Button>
+
+            <Button variant="outline" asChild>
+              <Link href="/debug/system">Run System Check</Link>
+            </Button>
+
+            <Button variant="secondary" asChild>
+              <Link href="/auth/debug">Check Authentication</Link>
             </Button>
           </div>
-        </CardFooter>
+        </CardContent>
       </Card>
     </div>
   )

@@ -100,10 +100,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(data.session?.user ?? null)
       setIsAuthenticated(!!data.session)
       setAuthError(null)
-      toast({
-        title: "Session refreshed",
-        description: "Your authentication session has been refreshed successfully.",
-      })
+
+      // Force reload the page to ensure all components pick up the new session
+      if (data.session) {
+        window.location.reload()
+      } else {
+        toast({
+          title: "Session refresh failed",
+          description: "No session found. Please sign in again.",
+          variant: "destructive",
+        })
+      }
     } catch (error) {
       console.error("Exception refreshing session:", error)
       setAuthError(error instanceof Error ? error : new Error(String(error)))

@@ -1,51 +1,24 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { supabase } from "@/lib/supabase/client"
+import { useState } from "react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Skeleton } from "@/components/ui/skeleton"
+import { demoBookings } from "@/lib/demo-data"
+import { AlertCircle, Info } from "lucide-react"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 export function RecentBookings() {
-  const [bookings, setBookings] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
 
-  useEffect(() => {
-    async function fetchRecentBookings() {
-      try {
-        const { data: session } = await supabase.auth.getSession()
-        if (!session.session) return
-
-        const providerId = session.session.user.id
-
-        const { data, error } = await supabase
-          .from("bookings")
-          .select(`
-            id, 
-            booking_date, 
-            start_time, 
-            end_time, 
-            status, 
-            service_name,
-            client:client_id(id, full_name, avatar_url)
-          `)
-          .eq("provider_id", providerId)
-          .order("booking_date", { ascending: true })
-          .limit(5)
-
-        if (error) throw error
-
-        setBookings(data || [])
-      } catch (error) {
-        console.error("Error fetching recent bookings:", error)
-        // Set empty array if error
-        setBookings([])
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchRecentBookings()
-  }, [])
+  // Simulate loading for better UX
+  const handleRefresh = () => {
+    setLoading(true)
+    setTimeout(() => {
+      setLoading(false)
+    }, 1000)
+  }
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
@@ -57,7 +30,7 @@ export function RecentBookings() {
   }
 
   const formatTime = (timeString: string) => {
-    return timeString.substring(0, 5)
+    return timeString || "N/A"
   }
 
   if (loading) {
@@ -78,34 +51,54 @@ export function RecentBookings() {
     )
   }
 
-  if (bookings.length === 0) {
-    return (
-      <div className="flex h-[200px] items-center justify-center">
-        <p className="text-center text-muted-foreground">No bookings found</p>
-      </div>
-    )
-  }
-
   return (
-    <div className="space-y-8">
-      {bookings.map((booking) => (
-        <div key={booking.id} className="flex items-center">
-          <Avatar className="h-9 w-9">
-            <AvatarImage src={booking.client?.avatar_url || ""} alt={booking.client?.full_name || ""} />
-            <AvatarFallback>{booking.client?.full_name?.[0] || "C"}</AvatarFallback>
-          </Avatar>
-          <div className="ml-4 space-y-1">
-            <p className="text-sm font-medium leading-none">{booking.client?.full_name || "Unknown Client"}</p>
-            <p className="text-sm text-muted-foreground">{booking.service_name}</p>
-          </div>
-          <div className="ml-auto text-right">
-            <p className="text-sm font-medium">{formatDate(booking.booking_date)}</p>
-            <p className="text-sm text-muted-foreground">
-              {formatTime(booking.start_time)} - {formatTime(booking.end_time)}
-            </p>
-          </div>
+    <>
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-lg font-medium">Recent Bookings</h3>
+        <div className="flex items-center gap-2">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  <Info className="h-4 w-4" />
+                  <span className="sr-only">Information</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Showing demo data. Database access is limited.</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <Button variant="outline" size="sm" onClick={handleRefresh}>
+            Refresh
+          </Button>
         </div>
-      ))}
-    </div>
+      </div>
+
+      <Alert variant="warning" className="mb-4">
+        <AlertCircle className="h-4 w-4" />
+        <AlertTitle>Demo Mode</AlertTitle>
+        <AlertDescription>Showing sample data. Database access is limited or unavailable.</AlertDescription>
+      </Alert>
+
+      <div className="space-y-8">
+        {demoBookings.map((booking) => (
+          <div key={booking.id} className="flex items-center">
+            <Avatar className="h-9 w-9">
+              <AvatarImage src={booking.provider?.avatar_url || ""} alt={booking.provider?.full_name || ""} />
+              <AvatarFallback>{booking.provider?.full_name?.[0] || "P"}</AvatarFallback>
+            </Avatar>
+            <div className="ml-4 space-y-1">
+              <p className="text-sm font-medium leading-none">{booking.provider?.full_name || "Service Provider"}</p>
+              <p className="text-sm text-muted-foreground">{booking.service_name}</p>
+            </div>
+            <div className="ml-auto text-right">
+              <p className="text-sm font-medium">{formatDate(booking.date)}</p>
+              <p className="text-sm text-muted-foreground">{formatTime(booking.time)}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
   )
 }

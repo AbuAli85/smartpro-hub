@@ -1,93 +1,58 @@
-import { createClient } from "@supabase/supabase-js"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import type { Database } from "./database.types"
 
-// Store the client instance
-let supabaseInstance: ReturnType<typeof createClient<Database>> | null = null
+// Global variable to store the Supabase client instance
+let supabaseInstance: ReturnType<typeof createClientComponentClient<Database>> | null = null
 
 // Check if Supabase environment variables are configured
 export function isSupabaseConfigured(): boolean {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-    // Check if the variables exist and are not empty
-    const isConfigured =
-      typeof supabaseUrl === "string" &&
-      typeof supabaseAnonKey === "string" &&
-      supabaseUrl.length > 0 &&
-      supabaseAnonKey.length > 0
-
-    // Log configuration status for debugging
-    if (!isConfigured) {
-      console.warn("Supabase is not properly configured:", {
-        urlExists: typeof supabaseUrl === "string",
-        keyExists: typeof supabaseAnonKey === "string",
-        urlNotEmpty: typeof supabaseUrl === "string" && supabaseUrl.length > 0,
-        keyNotEmpty: typeof supabaseAnonKey === "string" && supabaseAnonKey.length > 0,
-      })
+    if (!supabaseUrl || !supabaseKey) {
+      console.warn("Supabase environment variables are missing or empty")
+      return false
     }
 
-    return isConfigured
+    return true
   } catch (error) {
     console.error("Error checking Supabase configuration:", error)
     return false
   }
 }
 
-// Get or create the Supabase client
+// Create a singleton instance of the Supabase client
 export function getSupabaseClient() {
-  try {
-    // Create the client if it doesn't exist
-    if (!supabaseInstance) {
-      if (!isSupabaseConfigured()) {
-        console.warn(
-          "Supabase is not configured. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY environment variables.",
-        )
-        return createDummyClient()
-      }
+  // For server-side rendering, always create a new instance
+  if (typeof window === "undefined") {
+    return createDummyClient()
+  }
 
-      supabaseInstance = createClient<Database>(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        {
-          auth: {
-            persistSession: true,
-            autoRefreshToken: true,
-            detectSessionInUrl: true,
-            storageKey: "smartpro_supabase_auth",
-            storage: {
-              getItem: (key) => {
-                try {
-                  return localStorage.getItem(key)
-                } catch (error) {
-                  console.error("Error getting auth item from storage:", error)
-                  return null
-                }
-              },
-              setItem: (key, value) => {
-                try {
-                  localStorage.setItem(key, value)
-                } catch (error) {
-                  console.error("Error setting auth item in storage:", error)
-                }
-              },
-              removeItem: (key) => {
-                try {
-                  localStorage.removeItem(key)
-                } catch (error) {
-                  console.error("Error removing auth item from storage:", error)
-                }
-              },
-            },
-          },
-          global: {
-            headers: {
-              "Content-Type": "application/json",
-            },
-          },
-        },
-      )
+  // Return existing instance if available
+  if (supabaseInstance) {
+    return supabaseInstance
+  }
+
+  try {
+    // Check if environment variables are available
+    if (!isSupabaseConfigured()) {
+      console.warn("Using dummy Supabase client - environment variables not configured")
+      return createDummyClient()
     }
+
+    // Create the client with explicit URL and key
+    supabaseInstance = createClientComponentClient<Database>({
+      supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      supabaseKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      options: {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true,
+        },
+      },
+    })
 
     return supabaseInstance
   } catch (error) {
@@ -107,14 +72,6 @@ function createDummyClient() {
     user_metadata: { role: "client" },
     created_at: new Date().toISOString(),
     last_sign_in_at: new Date().toISOString(),
-  }
-
-  // Demo profile data
-  const demoProfile = {
-    id: "demo-user-id",
-    full_name: "Demo User",
-    role: "client",
-    phone: "555-123-4567",
   }
 
   // Create a more robust dummy client with better method chaining support
@@ -172,7 +129,15 @@ function createDummyClient() {
                 },
                 single: async () => {
                   if (table === "profiles" && value === "demo-user-id") {
-                    return { data: demoProfile, error: null }
+                    return {
+                      data: {
+                        id: "demo-user-id",
+                        full_name: "Demo User",
+                        role: "client",
+                        phone: "555-123-4567",
+                      },
+                      error: null,
+                    }
                   }
                   return { data: null, error: null }
                 },
@@ -253,21 +218,8 @@ function createDummyClient() {
         remove: async () => ({ data: null, error: null }),
       }),
     },
-  } as unknown as ReturnType<typeof createClient<Database>>
+  } as any
 }
 
-// For backward compatibility - create a client if possible
+// Export a singleton instance for convenience
 export const supabase = typeof window !== "undefined" ? getSupabaseClient() : createDummyClient()
-
-// Add a global unhandled rejection handler for debugging
-if (typeof window !== "undefined") {
-  window.addEventListener("unhandledrejection", (event) => {
-    if (event.reason?.message?.includes("Auth session missing")) {
-      console.log("Auth session missing - this is expected for unauthenticated users")
-    } else {
-      console.error("Unhandled Promise Rejection in Supabase client:", event.reason || {})
-    }
-    // Prevent the error from propagating
-    event.preventDefault()
-  })
-}

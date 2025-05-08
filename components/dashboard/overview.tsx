@@ -1,100 +1,24 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis } from "recharts"
-import { supabase } from "@/lib/supabase/client"
 import { Skeleton } from "@/components/ui/skeleton"
+import { demoRevenueData } from "@/lib/demo-data"
+import { AlertCircle, Info } from "lucide-react"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 export function Overview() {
-  const [data, setData] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
 
-  useEffect(() => {
-    async function fetchRevenueData() {
-      try {
-        const { data: session } = await supabase.auth.getSession()
-        if (!session.session) return
-
-        const providerId = session.session.user.id
-
-        // Get current year
-        const currentYear = new Date().getFullYear()
-
-        // Create array of months
-        const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-
-        // Initialize data with all months and zero revenue
-        const initialData = months.map((name, index) => ({
-          name,
-          total: 0,
-          month: index + 1,
-        }))
-
-        // Fetch completed bookings for the current year
-        const { data: bookings, error } = await supabase
-          .from("bookings")
-          .select("service_fee, booking_date")
-          .eq("provider_id", providerId)
-          .eq("status", "completed")
-          .gte("booking_date", `${currentYear}-01-01`)
-          .lte("booking_date", `${currentYear}-12-31`)
-
-        if (error) throw error
-
-        // Aggregate revenue by month
-        if (bookings && bookings.length > 0) {
-          bookings.forEach((booking) => {
-            if (booking.booking_date && booking.service_fee) {
-              const bookingDate = new Date(booking.booking_date)
-              const monthIndex = bookingDate.getMonth()
-              initialData[monthIndex].total += booking.service_fee
-            }
-          })
-        }
-
-        // If no real data, use sample data for demonstration
-        if (bookings?.length === 0) {
-          setData([
-            { name: "Jan", total: 4000 },
-            { name: "Feb", total: 3000 },
-            { name: "Mar", total: 5000 },
-            { name: "Apr", total: 4000 },
-            { name: "May", total: 7000 },
-            { name: "Jun", total: 6000 },
-            { name: "Jul", total: 8000 },
-            { name: "Aug", total: 9000 },
-            { name: "Sep", total: 8000 },
-            { name: "Oct", total: 10000 },
-            { name: "Nov", total: 12000 },
-            { name: "Dec", total: 15000 },
-          ])
-        } else {
-          setData(initialData)
-        }
-      } catch (error) {
-        console.error("Error fetching revenue data:", error)
-        // Fallback to sample data
-        setData([
-          { name: "Jan", total: 4000 },
-          { name: "Feb", total: 3000 },
-          { name: "Mar", total: 5000 },
-          { name: "Apr", total: 4000 },
-          { name: "May", total: 7000 },
-          { name: "Jun", total: 6000 },
-          { name: "Jul", total: 8000 },
-          { name: "Aug", total: 9000 },
-          { name: "Sep", total: 8000 },
-          { name: "Oct", total: 10000 },
-          { name: "Nov", total: 12000 },
-          { name: "Dec", total: 15000 },
-        ])
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchRevenueData()
-  }, [])
+  // Simulate loading for better UX
+  const handleRefresh = () => {
+    setLoading(true)
+    setTimeout(() => {
+      setLoading(false)
+    }, 1000)
+  }
 
   if (loading) {
     return (
@@ -105,18 +29,48 @@ export function Overview() {
   }
 
   return (
-    <ResponsiveContainer width="100%" height={350}>
-      <BarChart data={data}>
-        <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
-        <YAxis
-          stroke="#888888"
-          fontSize={12}
-          tickLine={false}
-          axisLine={false}
-          tickFormatter={(value) => `$${value}`}
-        />
-        <Bar dataKey="total" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-      </BarChart>
-    </ResponsiveContainer>
+    <>
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-lg font-medium">Revenue Overview</h3>
+        <div className="flex items-center gap-2">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  <Info className="h-4 w-4" />
+                  <span className="sr-only">Information</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Showing demo data. Database access is limited.</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <Button variant="outline" size="sm" onClick={handleRefresh}>
+            Refresh
+          </Button>
+        </div>
+      </div>
+
+      <Alert variant="warning" className="mb-4">
+        <AlertCircle className="h-4 w-4" />
+        <AlertTitle>Demo Mode</AlertTitle>
+        <AlertDescription>Showing sample data. Database access is limited or unavailable.</AlertDescription>
+      </Alert>
+
+      <ResponsiveContainer width="100%" height={350}>
+        <BarChart data={demoRevenueData}>
+          <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
+          <YAxis
+            stroke="#888888"
+            fontSize={12}
+            tickLine={false}
+            axisLine={false}
+            tickFormatter={(value) => `$${value}`}
+          />
+          <Bar dataKey="total" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
+    </>
   )
 }
